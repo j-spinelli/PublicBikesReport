@@ -1,0 +1,366 @@
+---
+title: "Recorrido Biciletas CABA 2015-2021"
+date: '2022-06-18'
+output: 
+  html_document:
+    css: style.css
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    number_sections: true
+    theme: paper
+---
+
+```{r options, echo = FALSE}
+
+knitr::opts_chunk$set(warning = FALSE, #no visualizar advertencias
+                      error = FALSE, #no visualizar errores
+                      message = FALSE) # no visualizar mensajes de consola
+
+``` 
+
+--------------------------------------------------------------------------------------  
+Autor: Spinelli, Julián C.
+
+---------------------------------------------------------------------------------------
+
+# Introducción
+
+El siguiente informe pretende brindar cierta información respecto de los recorridos realizados mediante el uso de las bicicletas administradas por el Gobierno de la Ciudad de Buenos Aires, también conocidas como "ecobicis".
+Para esto utilizaremos los datos publicados por el propio gobierno, realizando un recorte entre los años 2015-2021. Esto se debe a que los datos de años anteriores no se encuentran disponibles, por el momento.
+
+
+# Configuración y aproximación
+
+En primer lugar, procedemos a cargar las librerías a utilizar:
+
+```{r paquetes, message=FALSE}
+library(tidyverse) # Set de herramientas inicial
+library(lubridate) # Manejo de Fechas
+library(viridis) # Escala de colores
+library(plotly) # Interacción entre visualizaciones
+library(kableExtra) # Visualizaciones de tablas
+
+```
+
+Luego, insertamos los dataframes correspondientes:
+
+
+```{r cargo recorridos}
+bicicletas_2015 <- read_csv("recorridos-realizados-2015.csv")
+bicicletas_2016 <- read_csv("recorridos-realizados-2016.csv")
+bicicletas_2017 <- read_csv("recorridos-realizados-2017.csv")
+bicicletas_2018 <- read_csv("recorridos-realizados-2018.csv")
+bicicletas_2019 <- read_csv("recorridos-realizados-2019.csv")
+bicicletas_2020 <- read_csv("recorridos_realizados_2020.csv")
+bicicletas_2021 <- read_csv("recorridos_realizados_2021.csv")
+
+```
+
+
+Primera aproximación del contenido que proveen los dataframes:
+
+```{r kable de eventos, echo=FALSE}
+kableExtra::kable(head(bicicletas_2021)) %>%
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+ scroll_box(width = "100%", height = "400px")
+```
+
+# Manipulación y limpieza de los datos
+
+A continuación procedemos a recopilar la información que utilizaremos de los distintos dataframes y realizar una limpieza y normalización de los mismos:
+
+
+```{r Visualizo que contienen los sets}
+glimpse(bicicletas_2015)
+glimpse(bicicletas_2017)
+glimpse(bicicletas_2021)
+
+```
+
+Lo primero que surge de esta breve exploración es que, en los distintos sets, conviven mismas variables con distintos tipos de datos __(id_estacion_origen; id_estacion_destino; fecha_origen_recorrido; fecha_destino_recorrido; duracion_recorrido)__. Si observamos detenidamente, algunos se encuentran representados como __characters__, mientras que entros frames, aparecen como __datetime__.
+Con lo cual, lo primero que debemos hacer es homogeneizar estos tipos de datos, para luego no tener un error al momento de recopilar los data sets.
+
+```{r Homogeinizo los tipos de dato}
+
+bicicletas_2015 <- bicicletas_2015 %>%
+  mutate(id_estacion_origen = as.character(id_estacion_origen))%>%
+  mutate(id_estacion_destino = as.character(id_estacion_destino))%>%
+  mutate(fecha_origen_recorrido = ymd_hms(fecha_origen_recorrido)) %>%
+  mutate(fecha_destino_recorrido = ymd_hms(fecha_destino_recorrido))
+
+bicicletas_2016 <- bicicletas_2016 %>%
+  mutate(id_estacion_origen = as.character(id_estacion_origen))%>%
+  mutate(id_estacion_destino = as.character(id_estacion_destino))%>%
+  mutate(fecha_origen_recorrido = ymd_hms(fecha_origen_recorrido)) %>%
+  mutate(fecha_destino_recorrido = ymd_hms(fecha_destino_recorrido))
+
+bicicletas_2017 <- bicicletas_2017 %>%
+  mutate(id_estacion_origen = as.character(id_estacion_origen))%>%
+  mutate(id_estacion_destino = as.character(id_estacion_destino))
+  
+
+bicicletas_2018 <- bicicletas_2018 %>%
+  mutate(id_estacion_origen = as.character(id_estacion_origen))%>%
+  mutate(id_usuario = as.character(id_usuario))%>%
+  mutate(id_estacion_destino = as.character(id_estacion_destino))
+
+bicicletas_2019 <-bicicletas_2019 %>%
+   mutate(fecha_origen_recorrido = ymd_hms(fecha_origen_recorrido)) %>%
+   mutate(fecha_destino_recorrido = ymd_hms(fecha_destino_recorrido))%>%
+   mutate(duracion_recorrido = as.character(duracion_recorrido))
+
+bicicletas_2020 <-bicicletas_2020 %>%
+  mutate(fecha_origen_recorrido = ymd_hms(fecha_origen_recorrido)) %>%
+  mutate(fecha_destino_recorrido = ymd_hms(fecha_destino_recorrido))%>%
+  mutate(duracion_recorrido = as.character(duracion_recorrido))  
+
+bicicletas_2021 <-bicicletas_2021 %>%
+  mutate(fecha_origen_recorrido = ymd_hms(fecha_origen_recorrido)) %>%
+  mutate(fecha_destino_recorrido = ymd_hms(fecha_destino_recorrido))%>%
+  mutate(duracion_recorrido = as.character(`Duracion Recorrido`))%>%
+  select(-`Duracion Recorrido`)
+  
+
+```
+
+
+Una vez realizado este proceso, procedemos a construir un solo dataframe que contenga las variables desde el 2015 hasta el 2021:
+
+```{r Unifico dataframes}
+
+bicicletas_2015_2021 <- bind_rows(bicicletas_2015,bicicletas_2016,bicicletas_2017,bicicletas_2018,bicicletas_2019,bicicletas_2020,bicicletas_2021)
+
+```
+
+
+Ya con el dataframe contenedor creado, removemos los dataframes que no utilizaremos, manteniendo únicamente el que corresponde al 2015-2021:
+
+```{r removemos dataframes}
+
+rm(bicicletas_2015, bicicletas_2016, bicicletas_2017,bicicletas_2018,bicicletas_2019,bicicletas_2020,bicicletas_2021)
+
+```
+
+
+Aqui nos encargamos de limpiar los datos de la variable "Duración Recorrido" en el dataframe, dado que contiene una multiplicidad de caracteres variados. Utilizando la función clean_names() de la libreria __janitor__ nos encargaremos de estandarizar los datos de dicha variable:
+
+
+```{r janitor para limpiear}
+bicicletas_2015_2021_cleaned <- bicicletas_2015_2021 %>% 
+  janitor::clean_names()
+```
+
+```{r kable de eventos2, echo=FALSE}
+kableExtra::kable(head(bicicletas_2015_2021_cleaned)) %>%
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+ scroll_box(width = "100%", height = "400px")
+```
+
+
+Por ultimo, procedemos a remover __bicicletas_2015_2021__:
+
+```{r elimino dataframe 2015_2021}
+rm(bicicletas_2015_2021)
+```
+
+# Cual es la estación mas demandada?
+
+Como primer paso, verificamos  __cuál es la estación con mayor demanda de bicicletas__ :
+
+```{r sort de estación mas demandada}
+Estacion_mayor_demanda <- bicicletas_2015_2021_cleaned %>% 
+  count(nombre_estacion_origen,
+        sort = T,
+        name = 'cantidad_salidas')%>% 
+  top_n(10)
+```
+
+
+
+```{r kable de eventos3, echo=FALSE}
+kableExtra::kable(head(Estacion_mayor_demanda)) %>%
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+ scroll_box(width = "100%", height = "250px")
+```
+
+
+Lo que devuelve esta operación es que la estación __147 - Constitución__ es la más demandada durante este periodo. En consecuencia, trabajaremos con ella de ahora en adelante.
+
+# ¿Hacia dónde se dirige la gente desde esa estación?
+
+Lo primero que debemos realizar es una reducción de los datos para recibir únicamente las salidas de la estación __147 - Constitución__ . Luego, filtraremos también para que el lugar de devolución de la bicicleta no sea la estación desde donde se retiró la misma. Una vez realizado este proceso, usaremos la función __count()__ para verificar la frecuencia de la variable categórica __nombre_estacion_destino__.
+
+```{r proceso data para ej 1}
+destinos_desde_constitucion <- bicicletas_2015_2021_cleaned %>% 
+  filter(nombre_estacion_origen == '147 - Constitución' &
+           nombre_estacion_destino != '147 - Constitución') %>% 
+  count(nombre_estacion_destino,
+        sort = T,
+        name = 'cantidad_salidas_desde_constitucion') 
+```
+
+
+Al generar nuestra primera visualización utilizaremos los primeros diez valores para que el gráfico sea interpretable:
+
+```{r ggplot ej 1}
+destinos_desde_constitucion %>% 
+  top_n(10, cantidad_salidas_desde_constitucion) %>% 
+  ggplot(aes(x=reorder(nombre_estacion_destino,
+                       cantidad_salidas_desde_constitucion),
+             weight=cantidad_salidas_desde_constitucion))+
+  geom_bar(aes(fill = factor(nombre_estacion_destino))) +
+  scale_fill_viridis(discrete = T) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  coord_flip() +
+  labs(x = 'Estación',
+       y = 'Cantidad de llegadas',
+       title = 'Cantidad de llegadas por estación',
+       subtitle = 'desde Constitución',
+       caption = 'Fuente de datos: https://data.buenosaires.gob.ar/')
+```
+
+# ¿Cómo evolucionó el uso durante los años para esa estación de bicicletas?
+
+En primer lugar, vamos a crear un pequeño dataframe con los datos discriminados de nuestra estación. Esto es, los viajes salidos desde la estación constitución y que no volvieron a la estación como destino. 
+
+
+```{r armo base filtrada}
+bicicletas_2015_2021_constitucion<-bicicletas_2015_2021_cleaned %>% 
+  filter(nombre_estacion_origen == '147 - Constitución' | nombre_estacion_origen == 'Constitución',
+         nombre_estacion_destino != nombre_estacion_origen)
+```
+
+Luego modificamos __fecha_origen_recorrido__ para que se visualice la fecha sin horario mediante __as_date()__ . Finalmente, implementamos la función __un count()__ para calcular la frecuencia de cada fecha.
+
+```{r procesamiento datos ej 2}
+viajes_desde_constitucion_fecha <- bicicletas_2015_2021_constitucion %>%
+  mutate(fecha_de_inicio = parse_date_time(fecha_origen_recorrido, 'ymd HMS'),
+         dia_inicio = as_date(fecha_de_inicio)) %>%
+  count(dia_inicio) 
+
+```
+
+
+```{r ggplot ej 2}
+visualizacion_viajes_por_fecha <- viajes_desde_constitucion_fecha %>% 
+  ggplot(aes(x=dia_inicio, y = n)) + 
+  geom_line(color = 'green3', size = 1.5)+
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(x = 'Dia',
+       y = 'Cantidad de salidas',
+       title = 'Cantidad de salidas por día desde Constitución')
+
+ggplotly(visualizacion_viajes_por_fecha, tooltip = c("x", "y"))
+```
+
+
+La información que nos ha devuelto esta visualización resulta interesante. Si observamos el gráfico, previo al 2019 no hay datos respecto de la estación __147 - Constitución__ .
+
+
+#  ¿Qué día de la semana se utilizó más la estación?
+
+Para continuar, nos proponemos verificar qué día de la semana fue el más demandado en nuestro recorte temporal.
+
+Primero, crearemos una variables que nos permita distinguir los días de la semana en nuestra variable __dia_inicio__.
+
+
+```{r agregar columnas dia_semana}
+viajes_desde_constitucion_fecha$dia_semana_salida <- weekdays(viajes_desde_constitucion_fecha$dia_inicio) 
+  
+```
+
+
+Con esta información, vamos a sumar la cantidad de salidas por fechas, pero agrupada según los días de la semana. Luego, la ordenaremos para verificar que día se dió la mayor cantidad de retiros.
+
+```{r ordernar y contar la cantidad de salidas}
+viajes_desde_constitucion_semana <- viajes_desde_constitucion_fecha %>% 
+  group_by(dia_semana_salida) %>% 
+  summarise(Cantidad_salidas_por_dia = sum(n)) %>% 
+  arrange(desc(Cantidad_salidas_por_dia))
+
+```
+
+Por último, realizamos la visualización de los mismos en un gráfico de barras, ordenado por los días de la semana:
+
+
+```{r ggplot ej 3}
+visualización_viajes_constitucion_semana <-viajes_desde_constitucion_semana %>% 
+ggplot(aes(x= fct_relevel(
+    dia_semana_salida,
+    "lunes",
+    "martes",
+    "miércoles",
+    "jueves",
+    "viernes",
+    "sábado",
+    "domingo"
+  ), y=Cantidad_salidas_por_dia, fill = dia_semana_salida, label = Cantidad_salidas_por_dia)) + 
+  geom_bar(stat = "identity")+
+  geom_text(size = 3, 
+            position = position_stack(vjust = 0.5), 
+            colour = 'white') + 
+  labs(x = '',
+       y = '',
+       title = 'Cantidad de salidas por día de la semana',
+       subtitle = 'desde Constitución (2019-2021)',
+       caption = 'Fuente de datos: https://data.buenosaires.gob.ar/') +
+  theme(legend.position = "none")
+```
+
+```{r echo=FALSE}
+visualización_viajes_constitucion_semana
+```
+
+
+Como podemos observar, el día __Miercoles__ fue el día que más salidas hubo desde la estación __147 - Constitución__ con un total de __22881 salidas__ en el periodo 2019-2021.
+
+# ¿A qué hora crece la demanda?
+
+Para finalizar, nos proponemos observar qué hora del día es la más demandada para la estación.
+
+En primer lugar, crearemos dos variables que nos permiten separar la fecha del retiro de la bicicleta del horario en el que se produjo su retiro:
+
+
+```{r separación dia_hora}
+bicicletas_2015_2021_constitucion$dia_inicio <- as.Date(bicicletas_2015_2021_constitucion$fecha_origen_recorrido)  
+bicicletas_2015_2021_constitucion$hora_inicio <- format(as.POSIXct(bicicletas_2015_2021_constitucion$fecha_origen_recorrido) , format = "%H")
+ 
+```
+
+Una vez realizado este proceso, construimos un pequeño dataframe que contabilice la cantidad de salidas por hora:
+
+```{r contabilización por hora}
+viajes_desde_constitucion_hora <- bicicletas_2015_2021_constitucion %>% 
+  count(hora_inicio,
+        sort = T,
+        name = 'cantidad_salidas_hora')
+```
+
+
+Por último, generamos la visualización de los datos obtenidos:
+
+```{r}
+visualizacion_viajes_por_hora <-viajes_desde_constitucion_hora %>% 
+ggplot(aes(x= hora_inicio, y=cantidad_salidas_hora, fill = cantidad_salidas_hora, label = cantidad_salidas_hora, width= .8)) + 
+  geom_bar(stat = "identity",width= 2)+
+  geom_text(size = 3, 
+            position = position_stack(vjust = 0.5), 
+            colour = 'white') + 
+  coord_flip() +
+  labs(x = 'Hora',
+       y = 'Cantidad',
+       title = 'Cantidad de salidas por hora',
+       subtitle = 'desde Constitución (2019-2021)',
+       caption = 'Fuente de datos: https://data.buenosaires.gob.ar/') +
+  theme(legend.position = "none")
+```
+
+```{r fig.width=8, fig.height=6,echo=FALSE}
+visualizacion_viajes_por_hora
+```
+
+
+Como podemos observar, las __18hs__ aparece como la más demandada, con un total de __11585 retiros__ en nuestro recorte temporal.
